@@ -1,0 +1,1 @@
+python run.py --dataset $1 --k $2

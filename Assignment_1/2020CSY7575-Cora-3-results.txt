@@ -1,0 +1,2 @@
+Test Macro F1-score: 0.7506611300196436
+Best Val Macro F1-score: 0.7839293841948518

@@ -1,0 +1,2 @@
+Test Macro F1-score: 53.41%
+Best Val Macro F1-score: 55.70%

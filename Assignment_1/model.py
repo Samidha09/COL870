@@ -4,7 +4,7 @@ from torch.nn import Linear
 import torch.nn.functional as F
 from torch.nn import ModuleList
 from layer import *
-
+# from torch_geometric.nn import GCNConv as GraphConvolution
 #class GCN
 class GCNConv(nn.Module):
     """
@@ -27,5 +27,5 @@ class GCNConv(nn.Module):
             x = F.relu(layer(x, adj))#gnn
             x = F.dropout(x, self.dropout, training=self.training)
         x = self.lin(x)
-        return x #F.softmax(x, dim=1)
+        return F.softmax(x, dim=1)
 

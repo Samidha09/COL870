@@ -1,0 +1,4 @@
+Test Macro F1-score (MLP): 52.53%
+Best Val Macro F1-score (MLP): 53.52%
+Test Macro F1-score (GCN): 73.75%
+Best Val Macro F1-score (GCN): 74.79%

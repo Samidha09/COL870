@@ -1,1 +1,1 @@
-python topology.sh
+python topology.py

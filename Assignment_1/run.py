@@ -44,12 +44,12 @@ else:
 #make model object
 if(args.dataset == 'Cora'):
     arguments = {
-    'seed': 123456,
-    'hidden_dim': 64,
+    'seed': 0,
+    'hidden_dim': 32,
     'dropout': 0.2,
     'epochs': 2000,
-    'mlp_num_layers':2,
-    'learning_rate':0.01
+    'mlp_num_layers':1,
+    'learning_rate':0.0001
     }
 else:
     arguments = {
@@ -58,7 +58,7 @@ else:
     'dropout': 0.5,
     'epochs': 2000,
     'mlp_num_layers':1,
-    'learning_rate':0.01
+    'learning_rate':0.0001
     }
 
 #define optimizer
@@ -103,7 +103,7 @@ def test():
     return f1_test
 
 best_model = None
-best_valid_loss = 0
+best_valid_loss = 100000
 best_valid_f1 = 0
 f1_dict = {}
 loss_dict = {}
@@ -121,8 +121,10 @@ for epoch in range(1, 1 + arguments['epochs']):
 
     if(best_valid_loss > loss_val):
         best_valid_loss = loss_val
-        best_valid_f1 = f1_val
         best_model = copy.deepcopy(model)
+    
+    if(best_valid_f1 < f1_val):
+        best_valid_f1 = f1_val
 
     if(epoch%2== 0):
         print(f'Epoch: {epoch:02d}, '

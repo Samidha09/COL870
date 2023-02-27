@@ -87,9 +87,7 @@ torch.manual_seed(args.seed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(args.seed)
 
-
-
-
+device = args.device
 
 # Load and pre-process data
 adj, features, labels, idx_train, idx_val, idx_test = get_dataset(args.dataset, args.pe_dim, args.isSC, args.isPE)

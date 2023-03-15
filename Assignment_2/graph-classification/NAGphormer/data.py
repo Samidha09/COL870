@@ -1,7 +1,7 @@
 import utils
 import dgl
 import torch
-from ogb.nodeproppred import DglNodePropPredDataset
+from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
 import scipy.sparse as sp
 import os.path
 from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
@@ -85,8 +85,15 @@ def get_dataset(dataset, pe_dim):
         
         pass
     
-    elif dataset == 'ogb-ppa':
-        pass
+    elif dataset == 'ogbg-ppa':
+        graphs = DglGraphPropPredDataset(name = dataset)
+        split_idx = graphs.get_idx_split()
+        idx_train = graphs[split_idx["train"]]
+        idx_val = graphs[split_idx["valid"]]
+        idx_test = graphs[split_idx["test"]]
+        graph, label = graphs[0]
+        print(graph[0].x.shape, graph[0].edge_index.shape, label[0])
+        exit(0)
     
     return adj, features, labels, idx_train, idx_val, idx_test
 

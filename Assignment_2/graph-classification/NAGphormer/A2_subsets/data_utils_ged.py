@@ -4,7 +4,7 @@ shall be used in assignment 2, benchmarking exercises.
 from pathlib import Path
 from torch_geometric.datasets import GEDDataset
 from torch_geometric.transforms import NormalizeFeatures
-
+from torch_geometric.utils import to_networkx
 
 def load_ged_dataset(name):
     r"""Loads either of the ged datasets: AIDS700nef or Linux and returns
@@ -21,8 +21,10 @@ def load_ged_dataset(name):
     return dataset
 
 #converting pytorch dataset to networkx so that we can load it in dgl
-def convert_pytorch_to_networkx(dataset)
-    load_ged_dataset("LINUX")
+def convert_pytorch_to_networkx(dataset):
+    dataset = load_ged_dataset("LINUX")
+    nx_dataset = to_networkx(dataset)
+    
     
 
 convert_pytorch_to_networkx("LINUX")

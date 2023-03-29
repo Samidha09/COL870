@@ -1,5 +1,7 @@
 # Benchmarking NAGphormer against GraphSAGE on node classification
 
+<img src="https://github.com/Samidha09/COL870/blob/node-classification/Assignment_2/node-classification/f1-vs-epoch.png" width="90%"></img><img src="https://github.com/Samidha09/COL870/blob/node-classification/Assignment_2/node-classification/train-loss-vs-epoch.png" width="45%"></img><img src="https://github.com/Samidha09/COL870/blob/node-classification/Assignment_2/node-classification/val-loss-vs-epoch.png" width="45%"></img>
+
 **NOTE:** All scripts must be run from `COL870/Assignment_2/node-classification/`.
 
 # Environment

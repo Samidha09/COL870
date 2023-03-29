@@ -20,7 +20,7 @@ def stratified_split(data, labels, train_split: float = 0.9):
         test = test
     return train, test
 
-def get_dataset(dataset, path, pe_dim, train_split: float = None):
+def get_dataset(dataset, path, pe_dim, train_split: float = 1.):
     if dataset in {"pubmed", "corafull", "computer", "photo", "cs", "physics", "citeseer"}:
         file_path = path + dataset + ".pt"
         data_list = torch.load(file_path)
@@ -77,7 +77,7 @@ def get_dataset(dataset, path, pe_dim, train_split: float = None):
         adj = utils.sparse_mx_to_torch_sparse_tensor(adj)
         labels = torch.argmax(labels, -1)
 
-        if train_split is not None:
+        if train_split != 1.:
             idx_train, __ = stratified_split(
                 data=idx_train,
                 labels=labels[idx_train],

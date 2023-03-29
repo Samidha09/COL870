@@ -9,15 +9,17 @@ from torch.nn.functional import softmax
 from data import get_dataset
 from model import Model, cal_f1_score
 
+torch.manual_seed(7)
+
 parser = argparse.ArgumentParser()
 # Data
 parser.add_argument("--dataset", type=str, choices=["cora", "wisconsin"])
 parser.add_argument("--path", type=str, help="Where is the dataset stored.\
                     For example, if 'cora/' is stored in 'folder/subfolder', then use '--path=folder/subfolder'")
-parser.add_argument("--split", type=float, help="Fraction of training data to keep.")
+parser.add_argument("--split", type=float, default=1.0, help="Fraction of training data to keep.")
 # Model
-parser.add_argument("--num_layers", type=int, default=3, help="Number of layers in the model.")
-parser.add_argument("--hidden_units", type=int, default=128, help="Hidden units in each hidden layer.")
+parser.add_argument("--n_layers", type=int, default=3, help="Number of layers in the model.")
+parser.add_argument("--hidden_dim", type=int, default=128, help="Hidden units in each hidden layer.")
 parser.add_argument("--dropout", type=float, default=0.1)
 # Training
 parser.add_argument("--device", type=int, default=0, help="Cuda gpu index.")
@@ -25,17 +27,18 @@ parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--weight_decay", type=float, default=1e-4)
 parser.add_argument("--max_epochs", type=int, default=1000)
 # Output
-parser.add_argument("--log_path", type=str, default="./", help="Where to store log.csv.")
+parser.add_argument("--log_path", type=str, help="Where to store log.csv.")
 
 args = parser.parse_args()
+print("\n>>> train.py:", args)
 
 data = get_dataset(name=args.dataset, root=args.path, train_split=args.split)
 
 model = Model(
     num_features=data.x.size(1),
     num_classes=data.y.max() + 1,
-    num_layers=args.num_layers,
-    hidden_units=args.hidden_units,
+    n_layers=args.n_layers,
+    hidden_dim=args.hidden_dim,
     dropout=args.dropout,
 )
 optimizer = torch.optim.Adam(
@@ -70,6 +73,7 @@ best_model = deepcopy(model).to(args.device)
 
 # Train.
 PATIENCE = 30
+EPS = 1e-2
 patience = 0
 best_val_loss = torch.inf
 df = DataFrame(columns=["loss_train", "loss_val", "f1", "time"])
@@ -81,7 +85,7 @@ for epoch in range(args.max_epochs):
     loss_train = train()
     loss_train, f1_train = test(data.train_mask)
     loss_val, f1_val = test(data.val_mask)
-    if loss_val < best_val_loss:
+    if abs(loss_val - best_val_loss) >= EPS:
         best_val_loss = loss_val
         best_model = deepcopy(model)
         patience = 0
@@ -104,4 +108,7 @@ print(
     f"Train loss: {loss_train:.4f}, Val loss: {loss_val:.4f}, Test loss: {loss_test:.4f}\n"
     f"Train F1: {f1_train:.2f}, Val F1: {f1_val:.2f}, Test F1: {f1_test:.2f}"
 )
-df.to_csv(args.log_path + "/log.csv", index=False)
+# df.to_csv(f"{args.log_path}/log{args.split}.csv", index=False)
+required_keys = ["split", "hidden_dim", "n_layers"]
+args_for_df = {key:val for key, val in vars(args).items() if key in required_keys}
+df.to_csv(f"{args.log_path}/log-{str(args_for_df)}.csv", index=False)

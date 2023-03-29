@@ -36,7 +36,7 @@ def parse_args():
                         help='Device cuda id')
     parser.add_argument('--seed', type=int, default=3407, 
                         help='Random seed.')
-    parser.add_argument("--split", type=float, default=None,
+    parser.add_argument("--split", type=float, default=1.,
                     help="Fraction of training data to use for training.")
 
     # model parameters
@@ -77,7 +77,7 @@ def parse_args():
     return parser.parse_args()
 
 args = parse_args()
-
+print("\n>>> train.py:", args)
 device = args.device
 
 random.seed(args.seed)
@@ -217,7 +217,10 @@ for epoch in range(args.epochs):
     df.loc[len(df)] = [loss_train, loss_val, f1_val, time_elapsed]
     if early_stopping.check([acc_val, loss_val], epoch):
         break
-df.to_csv(args.log_path + "/log.csv", index=False)
+# df.to_csv(f"{args.log_path}/log{args.split}.csv", index=False)
+required_keys = ["split", "hops", "pe_dim", "hidden_dim", "n_layers"]
+args_for_df = {key:val for key, val in vars(args).items() if key in required_keys}
+df.to_csv(f"{args.log_path}/log-{str(args_for_df)}.csv", index=False)
 
 print("Optimization Finished!")
 print("Train cost: {:.4f}s".format(time.time() - t_total))

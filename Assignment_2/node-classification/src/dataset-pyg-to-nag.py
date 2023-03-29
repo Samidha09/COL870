@@ -36,9 +36,16 @@ for i, label in enumerate(data.y):
     labels[i, label] = 1
 
 # Train, validation, and test splits.
-train_indices = data.train_mask.nonzero().flatten()
-val_indices = data.val_mask.nonzero().flatten()
-test_indices = data.test_mask.nonzero().flatten()
+if len(data.train_mask.size()) == 1:
+    # If only one train-val-test split is provided.
+    train_indices = data.train_mask.nonzero().flatten()
+    val_indices = data.val_mask.nonzero().flatten()
+    test_indices = data.test_mask.nonzero().flatten()
+else:
+    # If multiple train-val-test split are provided:
+    train_indices = data.train_mask[:, 0].nonzero().flatten()
+    val_indices = data.val_mask[:, 0].nonzero().flatten()
+    test_indices = data.test_mask[:, 0].nonzero().flatten()
 
 data_list = [scipy_adj, features, labels, train_indices, val_indices, test_indices]
 save(data_list, f"{args.output}/{args.dataset}.pt")

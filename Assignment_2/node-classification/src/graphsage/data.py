@@ -1,7 +1,8 @@
 from sklearn.model_selection import StratifiedShuffleSplit
-from torch import zeros_like
+from torch import zeros_like, manual_seed
 from torch_geometric.datasets import Planetoid, WebKB
 
+manual_seed(7)
 
 def stratified_split(data, labels, train_split: float = 0.9):
     splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_split, random_state=7)
@@ -19,11 +20,17 @@ def get_dataset(name:str, root:str, train_split:float = None):
         print("Invalid dataset!")
         exit(1)
     data = dataset[0]
-    if train_split is not None:
+    # In case multiple train-val-test splits are provided.
+    if len(data.train_mask.size()) != 1:
+        data.train_mask = data.train_mask[:, 0]
+        data.val_mask = data.val_mask[:, 0]
+        data.test_mask = data.test_mask[:, 0]
+
+    if train_split != 1.0:
         train_indices, __ = stratified_split(
             data=data.train_mask.nonzero().flatten(),
             labels=data.y[data.train_mask],
-            test_split=train_split,
+            train_split=train_split,
         )
         train_mask = zeros_like(data.val_mask)
         train_mask[train_indices] = True

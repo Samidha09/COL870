@@ -87,7 +87,7 @@ def laplacian_positional_encoding(g, pos_enc_dim):
 
     # Eigenvectors with scipy
     #EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR')
-    EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR', tol=1e-2) # for 40 PEs
+    EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR', tol=1e-2) # for 40 PEs, .toarray()
     EigVec = EigVec[:, EigVal.argsort()] # increasing order
     lap_pos_enc = torch.from_numpy(EigVec[:,1:pos_enc_dim+1]).float() 
 

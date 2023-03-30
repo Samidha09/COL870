@@ -1,31 +1,37 @@
-import dgl
-from dgl.nn import SAGEConv
+# from torch_geometric.nn import SAGEConv
+from layer import SAGEConv
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import global_mean_pool
+import torch
 
-class Classifier(nn.Module):
-    def __init__(self, g, in_dim, hidden_dim, n_classes, n_layers, activation, dropout):
+class Classifier(torch.nn.Module):
+    def __init__(self, dataset, hidden_dim, n_layers, seed, dropout, activation):
         super(Classifier, self).__init__()
-        self.g = g
+        torch.manual_seed(seed)
+        self.dropout = dropout
+        if(activation == 'gelu'):
+            self.activation = F.gelu
+        else:
+            self.activation = F.relu
         self.layers = nn.ModuleList()
-        # input layer
-        self.layers.append(SAGEConv(in_dim, hidden_dim, activation=activation))
-        # hidden layers
+        self.layers.append(SAGEConv(dataset.num_node_features, hidden_dim))
         for i in range(n_layers - 1):
-            self.layers.append(
-                SAGEConv(hidden_dim, hidden_dim, activation=activation)
-            )
-        # output layer
-        self.classify = nn.Linear(hidden_dim, n_classes)
-        self.dropout = nn.Dropout(p=dropout)
+            self.layers.append(SAGEConv(hidden_dim, hidden_dim, aggregator_type='mean'))
+        self.lin = nn.Linear(hidden_dim, dataset.num_classes)
         
 
-    def forward(self, features):
-        h = features
+    def forward(self, x, edge_index, edge_attr, batch):
+        # 1. Obtain node embeddings 
         for i, layer in enumerate(self.layers):
-            if i != 0:
-                h = self.dropout(h, training=self.training)
-            h = layer(self.g, h)
-        h = self.classify(h)
-        return F.softmax(h)
+            x = self.activation(layer(x, edge_index, edge_attr))
+            # print(x.shape)
+        # 2. Readout layer
+        x = global_mean_pool(x, batch)  # [batch_size, hidden_channels]
+
+        # 3. Apply a final classifier
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.lin(x)
+        
+        return x

@@ -1,6 +1,7 @@
 # Benchmarking NAGphormer against GraphSAGE on node classification
 
-<img src="f1-vs-epoch.png" width="90%"></img><img src="train-loss-vs-epoch.png" width="45%"></img><img src="val-loss-vs-epoch.png" width="45%"></img>
+<img src="f1-vs-epoch.png" width="90%"></img><img src="train-loss-vs-epoch.png" width="45%"></img><img src="val-loss-vs-epoch.png" width="45%"></img><br>
+<i>Figure: Performance over varying fraction of training data.</i>
 
 **NOTE:** All scripts must be run from `COL870/Assignment_2/node-classification/`.
 

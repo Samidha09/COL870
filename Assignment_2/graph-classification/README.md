@@ -31,7 +31,9 @@ python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_d
 For ogbg-ppa:
 
 ``` bash
-taskset -c 48-71 python train.py --dataset ogbg-ppa --batch_size 2000 --dropout 0.1 --hidden_dim 64 --hops 3  --n_heads 1 --n_layers 1 --pe_dim 10 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 37
+python train.py --dataset ogbg-ppa --batch_size 2000 --dropout 0.1 --hidden_dim 64 --hops 3  --n_heads 1 --n_layers 1 --pe_dim 10 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 37
 
 ```
 Source: https://github.com/JHL-HUST/NAGphormer
+
+> **_NOTE:_**  Plots will be saved in **plots** folder inside respective architecture's directory

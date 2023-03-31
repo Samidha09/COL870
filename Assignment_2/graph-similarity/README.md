@@ -20,9 +20,13 @@ https://github.com/gospodima/Extended-SimGNN/tree/master/src
 
 
 ### NAGphormer
+
 ``` bash
 cd NAGphormer 
+
+python src/NAGphormer/train.py --dataset <dataset-name> --path data/nagphormer/ --pyg_path data/pyg/<dataset-name>/ --dropout 0.1 --hidden_dim 512 --hops 3 --n_head 8 --n_layers 1 --pe_dim 3 --peak_lr 0.01 --weight_decay 1e-05 --device 1 --log_path log/nagphormer/<dataset-name> --epochs 1000
 ```
+Please run `python src/NAGphormer/train.py -h` to see the full list of args. 
 
 Source: https://github.com/JHL-HUST/NAGphormer
 

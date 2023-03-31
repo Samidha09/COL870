@@ -105,7 +105,10 @@ def get_dataset(dataset, pe_dim):
                 lpe = utils.laplacian_positional_encoding(graph, pe_dim) 
             except:
                 continue
-            features = torch.cat((graph.ndata['feat'], lpe), dim=1)
+            if(dataset == 'ogbg-ppa'):
+                features =  torch.cat((torch.ones(graph.num_nodes(),5), lpe), dim=1)
+            else:
+                features = torch.cat((graph.ndata['feat'], lpe), dim=1)
             n = graph.num_nodes()  
             
             labels = torch.tensor(np.full(n, label, dtype=int)) 
@@ -118,7 +121,10 @@ def get_dataset(dataset, pe_dim):
                 lpe = utils.laplacian_positional_encoding(graph, pe_dim) 
             except:
                 continue
-            features = torch.cat((graph.ndata['feat'], lpe), dim=1)
+            if(dataset == 'ogbg-ppa'):
+                features =  torch.cat((torch.ones(graph.num_nodes(),5), lpe), dim=1)
+            else:
+                features = torch.cat((graph.ndata['feat'], lpe), dim=1)
             n = graph.num_nodes()  
             labels = torch.tensor(np.full(n, label, dtype=int)) 
             val_graphs.append([adj, features, labels])
@@ -129,7 +135,10 @@ def get_dataset(dataset, pe_dim):
                 lpe = utils.laplacian_positional_encoding(graph, pe_dim) 
             except:
                 continue
-            features = torch.cat((graph.ndata['feat'], lpe), dim=1)
+            if(dataset == 'ogbg-ppa'):
+                features =  torch.cat((torch.ones(graph.num_nodes(),5), lpe), dim=1)
+            else:
+                features = torch.cat((graph.ndata['feat'], lpe), dim=1)
             n = graph.num_nodes()  
             labels = torch.tensor(np.full(n, label, dtype=int)) 
             test_graphs.append([adj, features, labels])

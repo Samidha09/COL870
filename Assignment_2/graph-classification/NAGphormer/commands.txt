@@ -37,4 +37,13 @@ python train.py --dataset mutag --batch_size 2000 --dropout 0.1 --hidden_dim 512
 
 CUDA_VISIBLE_DEVICES=1 python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_dim 512 --hops 3  --n_heads 8 --n_layers 1 --pe_dim 3 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 2 
 
-CUDA_VISIBLE_DEVICES=1 python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_dim 512 --hops 3  --n_heads 8 --n_layers 1 --pe_dim 2 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 2 
+taskset -c 48-71 CUDA_VISIBLE_DEVICES=1 python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_dim 512 --hops 3  --n_heads 8 --n_layers 1 --pe_dim 2 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 2 
+
+taskset -c 48-71 python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_dim 512 --hops 3  --n_heads 8 --n_layers 1 --pe_dim 2 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 2 
+
+#10000 graphs each
+taskset -c 48-71 python train.py --dataset ogbg-molhiv --batch_size 2000 --dropout 0.1 --hidden_dim 64 --hops 3  --n_heads 4 --n_layers 1 --pe_dim 3 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 200 --num_classes 2
+
+CUDA_VISIBLE_DEVICES=1 python train.py --dataset ogbg-ppa --batch_size 2000 --dropout 0.1 --hidden_dim 64 --hops 3  --n_heads 1 --n_layers 1 --pe_dim 10 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 1000 --num_classes 37
+
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1  python train.py --dataset ogbg-ppa --batch_size 2000 --dropout 0.1 --hidden_dim 64 --hops 3  --n_heads 1 --n_layers 1 --pe_dim 10 --peak_lr 0.01  --weight_decay=1e-05 --graph_batch_size 100 --num_classes 37

@@ -57,7 +57,7 @@ def parse_args():
     # training parameters
     parser.add_argument('--batch_size', type=int, default=1000,
                         help='Batch size')
-    parser.add_argument('--epochs', type=int, default=2000,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs to train.')
     parser.add_argument('--tot_updates',  type=int, default=1000,
                         help='used for optimizer learning rate scheduling')
@@ -80,7 +80,8 @@ args = parse_args()
 
 
 
-device = args.device
+device="cuda:1"
+# torch.cuda.set_device(1)
 
 random.seed(args.seed)
 np.random.seed(args.seed)
@@ -192,8 +193,8 @@ def train_one_graph(adj,features,label,train_data_loader):
         graph_emb = torch.mean(output, dim = 0).softmax(dim=-1)
         # print("Output: ", output)
         # print(graph_emb)
-        loss_train = F.cross_entropy(graph_emb, torch.tensor(label, dtype=torch.int64).to(device))#nll_loss
-        
+        # loss_train = F.cross_entropy(graph_emb, torch.tensor(label, dtype=torch.int64).to(device))#nll_loss
+        loss_train = F.cross_entropy(graph_emb, label.clone().detach().to(device))
     return loss_train
     
 
@@ -233,7 +234,7 @@ def validate_one_graph(adj,features,label,data_loader):
         # ---------
         output = model(nodes_features)
         graph_emb = torch.mean(output, dim = 0).softmax(dim=-1)
-        loss_val = F.cross_entropy(graph_emb, torch.tensor(label, dtype=torch.int64).to(device))#nll_loss
+        loss_val = F.cross_entropy(graph_emb, label.clone().detach().to(device))#nll_loss
         prediction = torch.argmax(graph_emb)
     return loss_val, (prediction == label)
 

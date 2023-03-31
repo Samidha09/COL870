@@ -21,6 +21,13 @@ def parameter_parser():
         default="gcn",
         help="Type of GNN-Operator. Default is gcn",
     )
+    
+    parser.add_argument(
+        "--train_ratio",
+        type=float,
+        default=1.0,
+        help="Enter value either 0.01/0.1/0.5/0.75/1.0 which are varying ratios of training data",
+    )
 
     parser.add_argument(
         "--epochs",
@@ -102,8 +109,10 @@ def parameter_parser():
         help="Enable differentiable pooling.",
     )
 
-    parser.add_argument("--plot", dest="plot", action="store_true")
+    parser.add_argument("--use_tensor_network", dest="use tensor network or not", action="store_true")
 
+    parser.add_argument("--plot", dest="plot graphs or not", action="store_true")
+     
     parser.add_argument("--synth", dest="synth", action="store_true")
 
     parser.add_argument("--save",
@@ -135,5 +144,6 @@ def parameter_parser():
     parser.set_defaults(measure_time=False)
     parser.set_defaults(notify=False)
     parser.set_defaults(synth=False)
+    parser.set_defaults(use_tensor_network=False)
 
     return parser.parse_args()

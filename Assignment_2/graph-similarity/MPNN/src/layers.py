@@ -140,7 +140,7 @@ class TensorNetworkModule(torch.nn.Module):
         self.weight_matrix = torch.nn.Parameter(
             torch.Tensor(
                 self.args.filters_3, self.args.filters_3, self.args.tensor_neurons
-            )
+           )
         )
         self.weight_matrix_block = torch.nn.Parameter(
             torch.Tensor(self.args.tensor_neurons, 2 * self.args.filters_3)

@@ -101,4 +101,7 @@ Increasing the learning rate and the dropout.
 ```
 python src/main.py --learning-rate 0.01 --dropout 0.9
 ```
-python src/main.py --dataset LINUX --gnn-operator sage --plot --save best_model.pt
+
+python src/main.py --dataset LINUX --gnn-operator sage --plot --save best_model.pt --epochs 500
+
+python src/main.py --dataset AIDS700nef --gnn-operator sage --plot --save best_model.pt --epochs 500

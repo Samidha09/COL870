@@ -40,8 +40,10 @@ class SimGNN(torch.nn.Module):
         """
         if self.args.histogram:
             self.feature_count = self.args.tensor_neurons + self.args.bins
-        else:
+        elif self.args.use_tensor_network:
             self.feature_count = self.args.tensor_neurons
+        else:
+            self.feature_count = self.args.filters_3
 
     def setup_layers(self):
         """
@@ -88,8 +90,10 @@ class SimGNN(torch.nn.Module):
             self.attention = DiffPool(self.args)
         else:
             self.attention = AttentionModule(self.args)
-
+        
+        
         self.tensor_network = TensorNetworkModule(self.args)
+        
         self.fully_connected_first = torch.nn.Linear(
             self.feature_count, self.args.bottle_neck_neurons
         )
@@ -262,14 +266,23 @@ class SimGNNTrainer(object):
             "dataset/{}".format(self.args.dataset), self.args.dataset, train=False
         )
         
+        if(self.args.train_ratio < 1.0):
+            train_idx = np.load(f"./dataset/{self.args.dataset}/{self.args.dataset}_{self.args.train_ratio}_training_graph_idxs.npy")
+        
         if(self.args.dataset == "LINUX"):
-            self.training_graphs = all_graphs[:600]
+            if(self.args.train_ratio < 1.0):
+                 self.training_graphs = all_graphs[train_idx]
+            else:
+                self.training_graphs = all_graphs[:600]
             self.val_graphs = all_graphs[600:]
             #print("length od val",len(self.val_graphs))
             #exit(0)
             
         if(self.args.dataset == "AIDS700nef"):
-            self.training_graphs = all_graphs[:420]
+            if(self.args.train_ratio < 1.0):
+                 self.training_graphs = all_graphs[train_idx]
+            else:
+                self.training_graphs = all_graphs[:420]
             self.val_graphs = all_graphs[420:]
             
         self.nged_matrix = self.training_graphs.norm_ged
@@ -409,8 +422,8 @@ class SimGNNTrainer(object):
         epochs = trange(self.args.epochs, leave=True, desc="Epoch")
         loss_list = []
         loss_list_val = []
-        acc_list = []
-        acc_list_test = []
+        rmse_list_test = []
+        f1_list_test = []
         total_train_time = 0
         train_time_list = []
         for epoch in epochs:
@@ -451,8 +464,10 @@ class SimGNNTrainer(object):
                     loss_list_val.append(loss_val)
                     if(loss_val < self.bestloss and epoch>1):
                         self.save()
-                        
-                    acc_list_test.append(self.score_test())
+                    
+                    rmse_k, f1_k = self.score_test()
+                    rmse_list_test.append(rmse_k)
+                    f1_list_test.append(f1_k)
                     train_time_list.append(total_train_time)
                     epoch_st1 = time.time()
                     self.model.train(True)
@@ -492,7 +507,12 @@ class SimGNNTrainer(object):
                 filename += "_diffpool"
             if self.args.histogram:
                 filename += "_hist"
-            filename = filename + 'epoch_vs_loss' + ".png"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+                
+            filename = "./plots/" + filename + str(self.args.train_ratio) + 'epoch_vs_loss' + ".png"
+            # print(filename) 
+            # exit(0)
             plt.savefig(filename)
             plt.close()
             
@@ -509,18 +529,20 @@ class SimGNNTrainer(object):
                 filename += "_diffpool"
             if self.args.histogram:
                 filename += "_hist"
-            filename = filename + "traintime_vs_loss" + ".png"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+            filename = "./plots/" + filename + str(self.args.train_ratio) + "traintime_vs_loss" + ".png"
             plt.savefig(filename)
             
             plt.close()
-            
+            # --------------------------------------
             fig, ax = plt.subplots()
             ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
             plt.xlabel('Training Time (milli seconds)')
-            plt.ylabel('Performance')
+            plt.ylabel('Test Performance: RMSE of GED (top-k-closest)')
             #plt.plot(loss_list, label="Train")
             plt.plot(
-                [t*1000 for t in train_time_list], acc_list_test
+                [t*1000 for t in train_time_list], rmse_list_test
             )
             #plt.ylim([0, 0.01])
             plt.legend()
@@ -530,16 +552,20 @@ class SimGNNTrainer(object):
                 filename += "_diffpool"
             if self.args.histogram:
                 filename += "_hist"
-            filename = filename + "traintime_vs_perf" + ".png"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+            filename = "./plots/" + filename + str(self.args.train_ratio) + "traintime_vs_rmse" + ".png"
             plt.savefig(filename)
-            
             plt.close()
             
-            plt.xlabel('Epochs')
-            plt.ylabel('Performance')
+            # ------------------------------
+            fig, ax = plt.subplots()
+            ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+            plt.xlabel('Training Time (milli seconds)')
+            plt.ylabel('Test Performance: F1-score(macro-avg) of GED (top-k-closest)')
             #plt.plot(loss_list, label="Train")
             plt.plot(
-                [*range(0, self.args.epochs, 5)], acc_list_test
+                [t*1000 for t in train_time_list], f1_list_test
             )
             #plt.ylim([0, 0.01])
             plt.legend()
@@ -549,7 +575,50 @@ class SimGNNTrainer(object):
                 filename += "_diffpool"
             if self.args.histogram:
                 filename += "_hist"
-            filename = filename + "epoch_vs_perf" + ".png"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+            filename = "./plots/" + filename + str(self.args.train_ratio) + "traintime_vs_f1" + ".png"
+            plt.savefig(filename)
+            plt.close()
+            
+            # ------------------------------
+            plt.xlabel('Epochs')
+            plt.ylabel('Test Performance: RMSE of GED (top-k-closest)')
+            #plt.plot(loss_list, label="Train")
+            plt.plot(
+                [*range(0, self.args.epochs, 5)], rmse_list_test
+            )
+            #plt.ylim([0, 0.01])
+            plt.legend()
+            filename = self.args.dataset
+            filename += "_" + self.args.gnn_operator
+            if self.args.diffpool:
+                filename += "_diffpool"
+            if self.args.histogram:
+                filename += "_hist"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+            filename = "./plots/" + filename + str(self.args.train_ratio) + "epoch_vs_rmse" + ".png"
+            plt.savefig(filename)
+            plt.close()
+            # ---------------------------
+            plt.xlabel('Epochs')
+            plt.ylabel('Test Performance: F1-score(macro-avg) of GED (top-k-closest)')
+            #plt.plot(loss_list, label="Train")
+            plt.plot(
+                [*range(0, self.args.epochs, 5)], f1_list_test
+            )
+            #plt.ylim([0, 0.01])
+            plt.legend()
+            filename = self.args.dataset
+            filename += "_" + self.args.gnn_operator
+            if self.args.diffpool:
+                filename += "_diffpool"
+            if self.args.histogram:
+                filename += "_hist"
+            if self.args.use_tensor_network == False:
+                filename += "_fc"
+            filename = "./plots/" + filename + str(self.args.train_ratio) + "epoch_vs_f1" + ".png"
             plt.savefig(filename)
             plt.close()
 
@@ -657,7 +726,7 @@ class SimGNNTrainer(object):
         #self.prec_at_20 = np.mean(prec_at_20_list).item()
         self.prec_at_k = np.mean(prec_at_k_list).item()
         self.model_error = np.mean(scores).item()
-        return np.mean(scores_top_k).item()+self.prec_at_k
+        return np.mean(scores_top_k).item(), self.prec_at_k
         #self.print_evaluation()
         
         
@@ -736,7 +805,7 @@ class SimGNNTrainer(object):
         self.prec_at_20 = np.mean(prec_at_20_list).item()
         self.prec_at_k = np.mean(prec_at_k_list).item()
         self.model_error = np.mean(scores).item()
-        return np.mean(scores_top_k).item()+self.prec_at_k
+        return np.mean(scores_top_k).item(), self.prec_at_k
         #self.print_evaluation()
         
         
@@ -816,11 +885,8 @@ class SimGNNTrainer(object):
 #         self.prec_at_20 = np.mean(prec_at_20_list).item()
         self.prec_at_k = np.mean(prec_at_k_list).item()
         self.model_error = np.mean(scores).item()
-        return np.mean(scores_top_k).item()+self.prec_at_k
+        return np.mean(scores_top_k).item(), self.prec_at_k
         #self.print_evaluation()
-        
-        
-        
         
     def score(self):
         """

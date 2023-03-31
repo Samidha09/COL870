@@ -18,6 +18,8 @@ python main_pyg.py --gnn sage --datsaset <dataset-name>
 Sources: 
 https://github.com/snap-stanford/ogb/tree/master/examples/graphproppred/ppa
 
+https://github.com/snap-stanford/ogb/tree/master/examples/graphproppred/mol
+
 https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/conv/sage_conv.html
 
 ### NAGphormer

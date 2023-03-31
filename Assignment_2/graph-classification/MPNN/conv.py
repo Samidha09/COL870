@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import global_mean_pool, global_add_pool
 from torch_geometric.utils import degree
 from torch_geometric.nn.aggr import Aggregation, MultiAggregation
+from ogb.graphproppred.mol_encoder import AtomEncoder, BondEncoder
 from torch import Tensor
 from torch_geometric.nn.dense.linear import Linear
 from torch.nn import LSTM
@@ -74,7 +75,6 @@ class SAGEConv(MessagePassing):
         self,
         in_channels: Union[int, Tuple[int, int]],
         out_channels: int,
-        edge_dim: int, 
         aggr: Optional[Union[str, List[str], Aggregation]] = "mean",
         normalize: bool = False,
         root_weight: bool = True,
@@ -87,7 +87,6 @@ class SAGEConv(MessagePassing):
         self.normalize = normalize
         self.root_weight = root_weight
         self.project = project
-        self.edge_dim = edge_dim
         if isinstance(in_channels, int):
             in_channels = (in_channels, in_channels)
 
@@ -116,7 +115,7 @@ class SAGEConv(MessagePassing):
             self.lin_r = Linear(in_channels[1], out_channels, bias=False)
 
         # print("IN CHANNEL: ", in_channels, "OUT CHANNEL: ", out_channels)
-        self.edge_encoder = Linear(edge_dim, out_channels)
+        self.edge_encoder = Linear(7, out_channels)
 
         self.reset_parameters()
 
@@ -139,10 +138,7 @@ class SAGEConv(MessagePassing):
             x = (self.lin(x[0]).relu(), x[1])
 
         # print(type(edge_attr))
-        if(self.edge_dim == 3):
-            edge_embedding = self.edge_encoder(edge_attr.type(torch.FloatTensor))
-        else:
-            edge_embedding = self.edge_encoder(edge_attr)
+        edge_embedding = self.edge_encoder(edge_attr)
         # propagate_type: (x: OptPairTensor)
         out = self.propagate(edge_index, x=x, edge_attr=edge_embedding, size=size)
         out = self.lin_l(out)
@@ -167,8 +163,8 @@ class SAGEConv(MessagePassing):
     def __repr__(self) -> str:
         return (f'{self.__class__.__name__}({self.in_channels}, '
                 f'{self.out_channels}, aggr={self.aggr})')
-
-### GNN to generate node embedding
+        
+### GNN to generate node embedding - ogbg-ppa
 class GNN_node(torch.nn.Module):
     """
     Output:
@@ -203,7 +199,7 @@ class GNN_node(torch.nn.Module):
             elif gnn_type == 'gcn':
                 self.convs.append(GCNConv(emb_dim))
             elif gnn_type == 'sage':
-                self.convs.append(SAGEConv(emb_dim, emb_dim, edge_dim))
+                self.convs.append(SAGEConv(emb_dim, emb_dim))
             else:
                 raise ValueError('Undefined GNN type called {}'.format(gnn_type))
 
@@ -242,6 +238,174 @@ class GNN_node(torch.nn.Module):
 
         return node_representation
 
+
+###SAGEConv - for molhiv
+class SAGEConvMolhiv(MessagePassing):
+    def __init__(
+        self,
+        in_channels: Union[int, Tuple[int, int]],
+        out_channels: int,
+        aggr: Optional[Union[str, List[str], Aggregation]] = "mean",
+        normalize: bool = False,
+        root_weight: bool = True,
+        project: bool = False,
+        bias: bool = True,
+        **kwargs,
+    ):
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.normalize = normalize
+        self.root_weight = root_weight
+        self.project = project
+        if isinstance(in_channels, int):
+            in_channels = (in_channels, in_channels)
+
+        if aggr == 'lstm':
+            kwargs.setdefault('aggr_kwargs', {})
+            kwargs['aggr_kwargs'].setdefault('in_channels', in_channels[0])
+            kwargs['aggr_kwargs'].setdefault('out_channels', in_channels[0])
+
+        super().__init__(aggr, **kwargs)
+
+        if self.project:
+            self.lin = Linear(in_channels[0], in_channels[0], bias=True)
+
+        if self.aggr is None:
+            self.fuse = False  # No "fused" message_and_aggregate.
+            self.lstm = LSTM(in_channels[0], in_channels[0], batch_first=True)
+
+        if isinstance(self.aggr_module, MultiAggregation):
+            aggr_out_channels = self.aggr_module.get_out_channels(
+                in_channels[0])
+        else:
+            aggr_out_channels = in_channels[0]
+
+        self.lin_l = Linear(aggr_out_channels, out_channels, bias=bias)
+        if self.root_weight:
+            self.lin_r = Linear(in_channels[1], out_channels, bias=False)
+
+        # print("IN CHANNEL: ", in_channels, "OUT CHANNEL: ", out_channels)
+        self.bond_encoder = BondEncoder(emb_dim = in_channels[0])
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.project:
+            self.lin.reset_parameters()
+        self.aggr_module.reset_parameters()
+        self.lin_l.reset_parameters()
+        if self.root_weight:
+            self.lin_r.reset_parameters()
+        # self.bond_encoder.reset_parameters()
+        
+    def forward(self, x: Union[Tensor, OptPairTensor], edge_index: Adj, edge_attr,
+                size: Size = None) -> Tensor:
+        """"""
+        if isinstance(x, Tensor):
+            x: OptPairTensor = (x, x)
+
+        if self.project and hasattr(self, 'lin'):
+            x = (self.lin(x[0]).relu(), x[1])
+
+        # print(type(edge_attr))
+        edge_embedding = self.bond_encoder(edge_attr)
+        # propagate_type: (x: OptPairTensor)
+        out = self.propagate(edge_index, x=x, edge_attr=edge_embedding, size=size)
+        out = self.lin_l(out)
+
+        x_r = x[1]
+        if self.root_weight and x_r is not None:
+            out += self.lin_r(x_r)
+
+        if self.normalize:
+            out = F.normalize(out, p=2., dim=-1)
+
+        return out
+
+    def message(self, x_j: Tensor) -> Tensor:
+        return x_j
+
+    def message_and_aggregate(self, adj_t: SparseTensor,
+                              x: OptPairTensor) -> Tensor:
+        adj_t = adj_t.set_value(None, layout=None)
+        return matmul(adj_t, x[0], reduce=self.aggr)
+
+    def __repr__(self) -> str:
+        return (f'{self.__class__.__name__}({self.in_channels}, '
+                f'{self.out_channels}, aggr={self.aggr})')
+### GNN to generate node embedding -ogbg-molhiv
+
+class GNN_node_molhiv(torch.nn.Module):
+    """
+    Output:
+        node representations
+    """
+    def __init__(self, num_layer, emb_dim, drop_ratio = 0.5, JK = "last", residual = False, gnn_type = 'gin'):
+        '''
+            emb_dim (int): node embedding dimensionality
+            num_layer (int): number of GNN message passing layers
+        '''
+
+        super(GNN_node_molhiv, self).__init__()
+        self.num_layer = num_layer
+        self.drop_ratio = drop_ratio
+        self.JK = JK
+        ### add residual connection or not
+        self.residual = residual
+
+        if self.num_layer < 2:
+            raise ValueError("Number of GNN layers must be greater than 1.")
+
+        self.atom_encoder = AtomEncoder(emb_dim)
+
+        ###List of GNNs
+        self.convs = torch.nn.ModuleList()
+        self.batch_norms = torch.nn.ModuleList()
+
+        for layer in range(num_layer):
+            if gnn_type == 'gin':
+                self.convs.append(GINConv(emb_dim))
+            elif gnn_type == 'gcn':
+                self.convs.append(GCNConv(emb_dim))
+            elif gnn_type == 'sage':
+                self.convs.append(SAGEConvMolhiv(emb_dim, emb_dim))
+            else:
+                raise ValueError('Undefined GNN type called {}'.format(gnn_type))
+
+            self.batch_norms.append(torch.nn.BatchNorm1d(emb_dim))
+
+    def forward(self, batched_data):
+        x, edge_index, edge_attr, batch = batched_data.x, batched_data.edge_index, batched_data.edge_attr, batched_data.batch
+
+        ### computing input node embedding
+
+        h_list = [self.atom_encoder(x)]
+        for layer in range(self.num_layer):
+
+            h = self.convs[layer](h_list[layer], edge_index, edge_attr)
+            h = self.batch_norms[layer](h)
+
+            if layer == self.num_layer - 1:
+                #remove relu for the last layer
+                h = F.dropout(h, self.drop_ratio, training = self.training)
+            else:
+                h = F.dropout(F.relu(h), self.drop_ratio, training = self.training)
+
+            if self.residual:
+                h += h_list[layer]
+
+            h_list.append(h)
+
+        ### Different implementations of Jk-concat
+        if self.JK == "last":
+            node_representation = h_list[-1]
+        elif self.JK == "sum":
+            node_representation = 0
+            for layer in range(self.num_layer + 1):
+                node_representation += h_list[layer]
+
+        return node_representation
+       
 
 ### Virtual GNN to generate node embedding
 class GNN_node_Virtualnode(torch.nn.Module):

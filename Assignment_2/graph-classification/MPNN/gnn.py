@@ -4,13 +4,13 @@ from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_poo
 import torch.nn.functional as F
 from torch_geometric.nn.inits import uniform
 
-from conv import GNN_node, GNN_node_Virtualnode
+from conv import GNN_node, GNN_node_Virtualnode, GNN_node_molhiv
 
 from torch_scatter import scatter_mean
 
 class GNN(torch.nn.Module):
 
-    def __init__(self, num_class, num_layer = 5, emb_dim = 300, edge_dim=7,
+    def __init__(self, dataset, num_class, num_layer = 5, emb_dim = 300,
                     gnn_type = 'gin', virtual_node = True, residual = False, drop_ratio = 0.5, JK = "last", graph_pooling = "mean"):
         '''
             num_tasks (int): number of labels to be predicted
@@ -33,7 +33,10 @@ class GNN(torch.nn.Module):
         if virtual_node:
             self.gnn_node = GNN_node_Virtualnode(num_layer, emb_dim, JK = JK, drop_ratio = drop_ratio, residual = residual, gnn_type = gnn_type)
         else:
-            self.gnn_node = GNN_node(num_layer, emb_dim, edge_dim, JK = JK, drop_ratio = drop_ratio, residual = residual, gnn_type = gnn_type)
+            if(dataset == 'ogbg-molhiv'):
+                self.gnn_node = GNN_node_molhiv(num_layer, emb_dim, JK = JK, drop_ratio = drop_ratio, residual = residual, gnn_type = gnn_type)
+            elif(dataset == 'ogbg-ppa'):
+                self.gnn_node = GNN_node(num_layer, emb_dim, JK = JK, drop_ratio = drop_ratio, residual = residual, gnn_type = gnn_type)
 
 
         ### Pooling function to generate whole-graph embeddings

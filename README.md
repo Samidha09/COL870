@@ -17,3 +17,5 @@ You will find three folders:
 3. node-classification 
 
 cd into respective folder, open README.md to find running instructions for that task.
+
+**Write-up pdf will be submitted separately on 02-04-2023 before the deadline.**

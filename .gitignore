@@ -1,6 +1,11 @@
+# General
 .vscode/
 __pycache__/
+# Node classification
 data/
 dataset/
 datasets/
+log/
+plots/
+
 *.docx

@@ -74,6 +74,7 @@ class SAGEConv(MessagePassing):
         self,
         in_channels: Union[int, Tuple[int, int]],
         out_channels: int,
+        edge_dim: int, 
         aggr: Optional[Union[str, List[str], Aggregation]] = "mean",
         normalize: bool = False,
         root_weight: bool = True,
@@ -86,7 +87,7 @@ class SAGEConv(MessagePassing):
         self.normalize = normalize
         self.root_weight = root_weight
         self.project = project
-
+        self.edge_dim = edge_dim
         if isinstance(in_channels, int):
             in_channels = (in_channels, in_channels)
 
@@ -115,7 +116,7 @@ class SAGEConv(MessagePassing):
             self.lin_r = Linear(in_channels[1], out_channels, bias=False)
 
         # print("IN CHANNEL: ", in_channels, "OUT CHANNEL: ", out_channels)
-        self.edge_encoder = Linear(7, out_channels)
+        self.edge_encoder = Linear(edge_dim, out_channels)
 
         self.reset_parameters()
 
@@ -137,7 +138,11 @@ class SAGEConv(MessagePassing):
         if self.project and hasattr(self, 'lin'):
             x = (self.lin(x[0]).relu(), x[1])
 
-        edge_embedding = self.edge_encoder(edge_attr)
+        # print(type(edge_attr))
+        if(self.edge_dim == 3):
+            edge_embedding = self.edge_encoder(edge_attr.type(torch.FloatTensor))
+        else:
+            edge_embedding = self.edge_encoder(edge_attr)
         # propagate_type: (x: OptPairTensor)
         out = self.propagate(edge_index, x=x, edge_attr=edge_embedding, size=size)
         out = self.lin_l(out)
@@ -169,7 +174,7 @@ class GNN_node(torch.nn.Module):
     Output:
         node representations
     """
-    def __init__(self, num_layer, emb_dim, drop_ratio = 0.5, JK = "last", residual = False, gnn_type = 'gin'):
+    def __init__(self, num_layer, emb_dim, edge_dim, drop_ratio = 0.5, JK = "last", residual = False, gnn_type = 'gin'):
         '''
             emb_dim (int): node embedding dimensionality
             num_layer (int): number of GNN message passing layers
@@ -198,7 +203,7 @@ class GNN_node(torch.nn.Module):
             elif gnn_type == 'gcn':
                 self.convs.append(GCNConv(emb_dim))
             elif gnn_type == 'sage':
-                self.convs.append(SAGEConv(emb_dim, emb_dim))
+                self.convs.append(SAGEConv(emb_dim, emb_dim, edge_dim))
             else:
                 raise ValueError('Undefined GNN type called {}'.format(gnn_type))
 

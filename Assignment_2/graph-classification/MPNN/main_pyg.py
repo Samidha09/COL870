@@ -45,6 +45,8 @@ args = parser.parse_args()
 device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
 multicls_criterion = torch.nn.CrossEntropyLoss()    
 
+print(torch.cuda.is_available())
+
 def train(model, device, loader, optimizer):
     model.train()
     total_loss = 0
@@ -115,17 +117,25 @@ def main():
     early_stopper = EarlyStopper(patience=30, min_delta=10)
     ### automatic dataloading and splitting
 
-    dataset = PygGraphPropPredDataset(name = args.dataset, transform = add_zeros, root='../NAGphormer/dataset')
+    if(args.dataset == 'ogbg-ppa'): 
+        dataset = PygGraphPropPredDataset(name = args.dataset, transform = add_zeros, root='./dataset')
+    else:
+        dataset = PygGraphPropPredDataset(name = args.dataset, root='./dataset')
 
     split_idx = dataset.get_idx_split()
 
     ### automatic evaluator. takes dataset name as input
     evaluator = Evaluator(args.dataset)
 
-    train_loader = DataLoader(dataset[split_idx["train"][:1000]], batch_size=args.batch_size, shuffle=True, num_workers = args.num_workers)
+    train_loader = DataLoader(dataset[split_idx["train"]], batch_size=args.batch_size, shuffle=True, num_workers = args.num_workers)
     valid_loader = DataLoader(dataset[split_idx["valid"]], batch_size=args.batch_size, shuffle=False, num_workers = args.num_workers)
     test_loader = DataLoader(dataset[split_idx["test"]], batch_size=args.batch_size, shuffle=False, num_workers = args.num_workers)
 
+    if(args.dataset == 'ogbg-ppa'):
+        edge_dimension = 7
+    elif(args.dataset == 'ogbg-molhiv'):
+        edge_dimension = 3
+        
     if args.gnn == 'gin':
         model = GNN(gnn_type = 'gin', num_class = dataset.num_classes, num_layer = args.num_layer, emb_dim = args.emb_dim, drop_ratio = args.drop_ratio, virtual_node = False).to(device)
     elif args.gnn == 'gin-virtual':
@@ -133,7 +143,7 @@ def main():
     elif args.gnn == 'gcn':
         model = GNN(gnn_type = 'gcn', num_class = dataset.num_classes, num_layer = args.num_layer, emb_dim = args.emb_dim, drop_ratio = args.drop_ratio, virtual_node = False).to(device)
     elif args.gnn == 'sage':
-        model = GNN(gnn_type = 'sage', num_class = dataset.num_classes, num_layer = args.num_layer, emb_dim = args.emb_dim, drop_ratio = args.drop_ratio, virtual_node = False).to(device)
+        model = GNN(gnn_type = 'sage', num_class = dataset.num_classes, num_layer = args.num_layer, emb_dim = args.emb_dim, edge_dim=edge_dimension, drop_ratio = args.drop_ratio, virtual_node = False).to(device)
     elif args.gnn == 'gcn-virtual':
         model = GNN(gnn_type = 'gcn', num_class = dataset.num_classes, num_layer = args.num_layer, emb_dim = args.emb_dim, drop_ratio = args.drop_ratio, virtual_node = True).to(device)
     else:
@@ -155,8 +165,9 @@ def main():
     file_perf = open(f"./metrics/{args.dataset}_perf.pkl", "wb")
 
     min_loss = 1000000
-    TEST_F1, TEST_ACC = 0
-    
+    TEST_F1 = 0
+    TEST_ACC = 0
+    best_model = None
     start=time.time()
 
     for epoch in range(1, args.epochs + 1):
@@ -185,12 +196,12 @@ def main():
         if(epoch%10 == 0):
             print('Evaluating...')
             test_f1, test_perf = eval(model, device, test_loader, evaluator)
-            perf_dict[epoch] = [test_perf.item(), test_f1, total_train_time]
+            perf_dict[epoch] = [test_perf, test_f1, total_train_time]
             
         if(val_loss.item() < min_loss):
             min_loss = val_loss.item()
             TEST_F1, TEST_ACC  = eval(model, device, test_loader, evaluator)
-            
+            best_model = model
             
         pickle.dump(train_loss_dict, file_train_loss)
         pickle.dump(val_loss_dict, file_val_loss)
@@ -202,7 +213,7 @@ def main():
     print('Finished training!')
     print('Best validation loss: {}'.format(min_loss))
     print('Test score at best val loss: {}, {}'.format(TEST_F1, TEST_ACC ))
-        
+    torch.save(best_model, 'best_model.pt')    
     return train_loss_dict, val_loss_dict, perf_dict
 
 def make_plots(train_loss_dict, val_loss_dict, perf_dict):  

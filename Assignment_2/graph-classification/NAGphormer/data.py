@@ -87,7 +87,7 @@ def get_dataset(dataset, pe_dim):
         graphs = DglGraphPropPredDataset(name = dataset)
         split_idx = graphs.get_idx_split()
     
-        train_loader = DataLoader(graphs[split_idx["train"][:1000]], batch_size=1, shuffle=True, collate_fn=collate_dgl)
+        train_loader = DataLoader(graphs[split_idx["train"][:100]], batch_size=1, shuffle=True, collate_fn=collate_dgl)
         valid_loader = DataLoader(graphs[split_idx["valid"]], batch_size=1, shuffle=False, collate_fn=collate_dgl)
         test_loader = DataLoader(graphs[split_idx["test"]], batch_size=1, shuffle=False, collate_fn=collate_dgl)
         # print(graph)

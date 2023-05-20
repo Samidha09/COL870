@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import torch.utils.data as Data
 from sklearn.metrics import f1_score
 from torch_geometric.datasets import GEDDataset
+from torch_geometric.utils import to_dense_adj
 
 import utils
 from data import get_dataset
@@ -44,6 +45,8 @@ def parse_args():
                     help="Fraction of training data to use for training.")
     parser.add_argument("--top_k", type=int, default=3,
                         help="Top k for computing the f1 and rmse.")
+    parser.add_argument("--one_hot", type=bool, default=False,
+                        help="Whether to generate one-hot encodings based on node degrees.")
 
     # model parameters
     parser.add_argument('--hops', type=int, default=7,
@@ -95,20 +98,57 @@ if torch.cuda.is_available():
 # Load and pre-process data
 pyg_dataset = GEDDataset(root=args.pyg_path, name=args.dataset)
 
-graphs, idx_train, idx_val, idx_test = get_dataset(
+graphs, idx_train, idx_val, idx_test, idx_dropped = get_dataset(
     dataset=args.dataset,
     pe_dim=args.pe_dim,
     path=args.path,
     train_split=args.split,
 )
 
+if args.one_hot:
+    # compute the max degree across all graphs.
+    max_degree = 0
+    for idx, graph in enumerate(graphs):
+        if idx in idx_dropped:
+            continue
+        dense_adj = to_dense_adj(graph[0].coalesce().indices()).squeeze(0)
+        local_max_degree = dense_adj.sum(dim=0).max()
+        if local_max_degree > max_degree:
+            max_degree = int(local_max_degree.item())
+
+    # create one-hot encodings for each node for each graph.
+    list_one_hot_features = list()
+    for idx, graph in enumerate(graphs):
+        if idx in idx_dropped:
+            list_one_hot_features.append(None)
+            continue
+        dense_adj = to_dense_adj(graph[0].coalesce().indices()).squeeze(0)
+        degrees = dense_adj.sum(dim=0)
+        num_nodes = graph[1].size(0)
+        one_hot_features = torch.zeros(size=(num_nodes, max_degree+1)) # +1 for accomodating 0 degree
+        for node in range(num_nodes):
+            one_hot_features[node, int(degrees[node])] = 1
+        list_one_hot_features.append(one_hot_features)
+
+    # concatenate the one hot encodings to the node features.
+    for idx, graph in enumerate(graphs):
+        if idx in idx_dropped:
+            continue
+        graph[1] = torch.concat([graph[1], list_one_hot_features[idx]], dim=1)
+
 list_processed_features = list()
-for graph in graphs:
+for idx, graph in enumerate(graphs):
+    if idx in idx_dropped:
+        list_processed_features.append(None)
+        continue
     processed_feature = utils.re_features(adj=graph[0], features=graph[1], K=args.hops)
     list_processed_features.append(processed_feature)
 
 # model configuration
-num_features = graphs[0][1].shape[1]
+for i in range(len(graphs)):
+    if graphs[i][1] is not None:
+        num_features = graphs[i][1].shape[1]
+        break
 model = TransformerModel(hops=args.hops, 
                         n_class=args.hidden_dim, # our output is an embedding.
                         input_dim=num_features,
@@ -134,7 +174,7 @@ lr_scheduler = PolynomialDecayLR(
                 power=1.0,
             )
 
-def train_valid_epoch(indices: torch.Tensor, training: bool = True):
+def train_valid_epoch(indices: torch.Tensor, batch_size:int=32, training: bool = True):
     if training:
         model.train()
         ged_model.train()
@@ -142,47 +182,57 @@ def train_valid_epoch(indices: torch.Tensor, training: bool = True):
         model.eval()
         ged_model.eval()
     loss_epoch = 0
-    for idx in indices:
+    loss_batch = 0
+    for i, idx in enumerate(indices):
         src = idx
         dest = random.randint(0, len(indices))
+        if src in idx_dropped or dest in idx_dropped:
+            continue
         ged = pyg_dataset.ged[pyg_dataset[src].i, pyg_dataset[dest].i].to(device)
         features_src = list_processed_features[src].to(device)
         features_dest = list_processed_features[dest].to(device)
 
-        if training:
-            optimizer.zero_grad()
         embedding_src = model(features_src)
         embedding_dest = model(features_dest)
 
         pred = ged_model(torch.cat([embedding_src, embedding_dest], dim=0))
 
         loss_train = F.mse_loss(pred, ged)
-        if training:
-            loss_train.backward()
+        loss_batch += loss_train
+        if training and (i % batch_size == 0 or i + 1 == len(indices)):
+            if i + 1 == len(indices):
+                loss_batch /= (i % batch_size)
+            else:
+                loss_batch /= batch_size
+            loss_batch.backward()
             optimizer.step()
             lr_scheduler.step()
-        loss_epoch += loss_train.item()
+            optimizer.zero_grad()
+            loss_batch = 0
+        loss_epoch += loss_train
 
     # Normalize to get the average mse_loss
     loss_epoch /= len(indices)
-    return loss_epoch
+    return loss_epoch.item()
 
-def test(indices, batch_size:int=16):
+def test(indices, indices_train, batch_size:int=16):
     model.eval()
     ged_model.eval()
     f1_avg = 0
     rmse_avg = 0
     # iterate over the indices
     for idx in indices:
+        if idx in idx_dropped:
+            continue
         # choose a random batch of graphs for comparison.
-        batch_indices = torch.randint(indices[0], indices[-1], (batch_size,))
+        batch_indices = torch.randint(indices_train[0], indices_train[-1], (batch_size,))
         # get pred over every graph in the batch
         preds = list()
         geds = list()
         for dest in batch_indices:
             src = idx
             dest = dest.item()
-            if dest >= len(list_processed_features):
+            if dest in idx_dropped:
                 continue
             features_src = list_processed_features[src].to(device)
             features_dest = list_processed_features[dest].to(device)
@@ -202,12 +252,14 @@ def test(indices, batch_size:int=16):
         # compute the f1 score
         f1 = f1_score(y_true=sorted_based_on_geds, y_pred=sorted_based_on_preds, average="macro")
         # compute the rmse
-        rmse =  torch.sqrt(torch.square(torch.mean(geds - preds)))
+        rmse =  torch.sqrt(torch.square(torch.mean(
+            geds.sort().values[:args.top_k] - preds.sort().values[:args.top_k]
+        )))
         f1_avg += f1
         rmse_avg += rmse
     f1_avg /= len(indices)
     rmse_avg /= len(indices)
-    return f1_avg, rmse_avg
+    return f1_avg.item(), rmse_avg.item()
 
 t_total = time.time()
 stopping_args = Stop_args(patience=args.patience, max_epochs=args.epochs)
@@ -216,11 +268,11 @@ df = pd.DataFrame(columns=["loss_train", "loss_val", "rmse", "f1", "time"])
 
 start_time = time.perf_counter() # in fractional seconds.
 for epoch in range(args.epochs):
-    loss_train = train_valid_epoch(indices=idx_train, training=True)
-    loss_val = train_valid_epoch(indices=idx_val, training=False)
+    loss_train = train_valid_epoch(indices=idx_train, batch_size=args.batch_size, training=True)
+    loss_val = train_valid_epoch(indices=idx_val, batch_size=args.batch_size, training=False)
     time_elapsed = time.perf_counter() - start_time
 
-    f1_val, rmse_val = test(indices=idx_val)
+    f1_val, rmse_val = test(indices=idx_val, indices_train=idx_train)
 
     print('Epoch: {:04d}'.format(epoch+1),
         '| loss_train: {:.4f}'.format(loss_train),
@@ -229,8 +281,14 @@ for epoch in range(args.epochs):
         '| rmse_val: {:.4f}'.format(rmse_val)
     )
 
-    df.loc[len(df)] = [loss_train, loss_val, f1_val, rmse_val, time_elapsed]
-    if early_stopping.check([loss_val], epoch):
+    df.loc[len(df)] = {
+        "loss_train":loss_train,
+        "loss_val":loss_val,
+        "rmse":rmse_val,
+        "f1":f1_val,
+        "time":time_elapsed
+    }
+    if early_stopping.check([f1_val, loss_val], epoch):
         break
 
 required_keys = ["split", "hops", "pe_dim", "hidden_dim", "n_layers", "top_k"]
@@ -243,8 +301,7 @@ print("Train cost: {:.4f}s".format(time.time() - t_total))
 print('Loading {}th epoch'.format(early_stopping.best_epoch+1))
 model.load_state_dict(early_stopping.best_state)
 
-print(idx_test)
-f1_test, rmse_test = test(indices=idx_test)
+f1_test, rmse_test = test(indices=idx_test, indices_train=idx_train)
 print(
     'f1_test: {:.2f}'.format(f1_val),
     '| rmse_test: {:.4f}'.format(rmse_val)

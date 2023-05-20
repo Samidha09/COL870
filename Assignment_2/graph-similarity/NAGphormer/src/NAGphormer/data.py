@@ -77,6 +77,7 @@ def get_dataset(dataset, pe_dim, path, train_split: float = 1.0):
         test_indices = dict_["test_indices"]
 
         graphs = list()
+        dropped_indices = list()
         dropped = 0
         total = len(dict_["data_lists"])
         for idx, data_list in enumerate(dict_["data_lists"]):
@@ -88,29 +89,26 @@ def get_dataset(dataset, pe_dim, path, train_split: float = 1.0):
             except:
                 # print("Dropped:", idx)
                 dropped += 1
-                # Drop the graph that fails to produce a positional encoding.
-                # Remove from indices.
-                if idx in train_indices:
-                    train_indices = train_indices[train_indices != idx]
-                elif idx in val_indices:
-                    val_indices = val_indices[val_indices != idx]
-                elif idx in test_indices:
-                    test_indices = test_indices[test_indices != idx]
-                continue
+                # Note the indices of graphs that fail to produce a
+                # positional encoding due to being too small.
+                dropped_indices.append(idx)
 
             features = data_list[1]
-            if features is not None:
+            if idx in dropped_indices:
+                features = None
+            elif features is not None:
                 features = torch.cat((features, lpe), dim=1)
             else:
                 features = lpe
-            
+
             adj = utils.sparse_mx_to_torch_sparse_tensor(adj)
             graphs.append([adj, features])
+        dropped_indices = torch.Tensor(dropped_indices).to(train_indices.dtype)
 
         if train_split != 1.0:
             train_indices = train_indices[:int(train_split * len(train_indices))]
 
         print(f"\nGraphs dropped for being too small: {dropped}/{total}")
-        return graphs, train_indices, val_indices, test_indices
+        return graphs, train_indices, val_indices, test_indices, dropped_indices
 
     return adj, features, labels, idx_train, idx_val, idx_test

@@ -21,6 +21,12 @@ https://github.com/gospodima/Extended-SimGNN/tree/master/src
 
 ### NAGphormer
 
+Recommended directory structure:
+- `cd NAGphormer`
+- Run `python src/create-dirs.py -f ./` to create the recommended directory structure.
+- It creates two folders (and their subfolders): `log`, `plots`.
+- These provide convenient options for `--path, --log_path, --plot_path` in the experiment's arguments.
+
 ``` bash
 cd NAGphormer 
 
